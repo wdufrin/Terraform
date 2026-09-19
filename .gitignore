@@ -1,0 +1,18 @@
+# Local Terraform state and provider directories
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# User-specific variable files (keep terraform.tfvars.example committed)
+*.tfvars
+*.tfvars.json
+!terraform.tfvars.example
+
+# Python caches & archives
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.zip
+

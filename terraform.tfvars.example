@@ -1,0 +1,5 @@
+# Copy this file to `terraform.tfvars` and set your target GCP Project ID:
+#   cp terraform.tfvars.example terraform.tfvars
+
+project_id = "your-gcp-project-id"
+location   = "global"

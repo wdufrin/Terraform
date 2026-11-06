@@ -390,14 +390,27 @@ locals {
       data_source         = local.all_connectors[k].data_source
       data_source_version = contains(keys(var.connectors), k) ? var.connectors[k].data_source_version : local.enabled_third_party_connectors[k].data_source_version
       bap_config          = local.all_connectors[k].bap_config
+      supported_bap_modes = contains(keys(var.connectors), k) ? var.connectors[k].supported_bap_modes : local.enabled_third_party_connectors[k].supported_bap_modes
+      enabled_actions     = contains(keys(var.connectors), k) ? var.connectors[k].enabled_actions : local.enabled_third_party_connectors[k].enabled_actions
+      action_params = (
+        contains(keys(var.connectors), k)
+        ? local.first_party_action_params[k]
+        : local.third_party_action_params[k]
+      )
     }
   }
 }
 
 # Because `action_config.is_action_configured` is a read-only (`computed`) attribute in the
-# hashicorp/google-beta provider schema, this native Terraform step waits for the asynchronous
-# BAP connection (`actionState == ACTIVE`) and sends a REST PATCH using the Google provider's
-# token to mark `isActionConfigured = true`.
+# hashicorp/google-beta provider schema (and `action_config.action_params` + `create_bap_connection`
+# are in `lifecycle.ignore_changes` to prevent post-create drift when the API strips credentials on
+# read-back), this native Terraform step:
+# 1. Checks if the connector is already `actionState == ACTIVE` (e.g. when created with ACTIONS from scratch);
+# 2. If `actionState` is still empty (e.g. when a customer upgrades an existing `FEDERATED`-only connector
+#    to `["FEDERATED", "ACTIONS"]` in-place), sends a REST PATCH with `actionConfig` (`createBapConnection: true`
+#    + `actionParams`) and `bapConfig` to provision the BAP connection in-place;
+# 3. Waits for `state == ACTIVE` and `actionState == ACTIVE`, then sends a REST PATCH to set
+#    `actionConfig.isActionConfigured = true`.
 # Requires /bin/bash and curl on the machine running Terraform.
 resource "terraform_data" "finalize_connector_actions" {
   for_each = local.actionable_connectors
@@ -407,14 +420,16 @@ resource "terraform_data" "finalize_connector_actions" {
     each.value.collection_id,
     each.value.data_source,
     each.value.data_source_version,
-    jsonencode(each.value.bap_config)
+    jsonencode(each.value.bap_config),
+    jsonencode(each.value.enabled_actions),
+    sha256(nonsensitive(jsonencode(each.value.action_params)))
   ]
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     environment = {
       # nonsensitive(): Terraform suppresses ALL provisioner output when any environment value is
-      # sensitive, which would hide the error messages below. The script never prints the token.
+      # sensitive, which would hide the error messages below. The script never prints the token or payload.
       ACCESS_TOKEN    = nonsensitive(data.google_client_config.default.access_token)
       PROJECT_ID      = var.project_id
       CONNECTOR_KEY   = each.key
@@ -422,12 +437,24 @@ resource "terraform_data" "finalize_connector_actions" {
       CONNECTOR_URL = (
         "${local.discovery_engine_api_endpoint}/v1alpha/projects/${var.project_id}/locations/${var.location}/collections/${each.value.collection_id}/dataConnector"
       )
+      ACTION_UPGRADE_PAYLOAD = nonsensitive(jsonencode({
+        connectorModes = ["FEDERATED", "ACTIONS"]
+        actionConfig = {
+          createBapConnection = true
+          actionParams        = each.value.action_params
+        }
+        bapConfig = {
+          supportedConnectorModes = each.value.supported_bap_modes
+          enabledActions          = each.value.enabled_actions
+        }
+      }))
     }
     command = <<-EOT
       set -euo pipefail
       attempts=$(( TIMEOUT_SECONDS / 10 ))
       if [ "$attempts" -lt 1 ]; then attempts=1; fi
       body=""
+      upgraded=0
       for attempt in $(seq 1 "$attempts"); do
         raw=$(curl -sS -w '\n%%{http_code}' \
           -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -455,7 +482,32 @@ resource "terraform_data" "finalize_connector_actions" {
           echo "ERROR: Connector '$CONNECTOR_KEY' reported FAILED or INITIALIZATION_FAILED. Response: $body" >&2
           exit 1
         fi
+        # If the connector was previously created in FEDERATED-only mode, the provider's ignore_changes on
+        # action_config means actionState is still absent on GET. Provision the BAP connection in-place via PATCH.
+        if [ "$upgraded" -eq 0 ] && ! grep -qE '"actionState":[[:space:]]*"(ACTIVE|CREATING)"' <<<"$body"; then
+          patch_raw=$(curl -sS -w '\n%%{http_code}' -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "X-Goog-User-Project: $PROJECT_ID" \
+            -H "Content-Type: application/json" \
+            "$CONNECTOR_URL?updateMask=connectorModes,actionConfig,bapConfig" \
+            -d "$ACTION_UPGRADE_PAYLOAD") || patch_raw=$(printf '\n000')
+          patch_code=$(printf '%s' "$patch_raw" | tail -n 1)
+          patch_body=$(printf '%s' "$patch_raw" | sed '$d')
+          if [ "$patch_code" != "200" ]; then
+            echo "ERROR: HTTP $patch_code provisioning BAP actions in-place on '$CONNECTOR_KEY'. Response: $patch_body" >&2
+            exit 1
+          fi
+          upgraded=1
+          sleep 5
+          continue
+        fi
         if grep -qE '"actionState":[[:space:]]*"ACTIVE"' <<<"$body" && grep -qE '"state":[[:space:]]*"ACTIVE"' <<<"$body"; then
+          curl -sS -f -X PATCH \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "X-Goog-User-Project: $PROJECT_ID" \
+            -H "Content-Type: application/json" \
+            "$CONNECTOR_URL?updateMask=actionConfig.isActionConfigured,bapConfig.enabledActions" \
+            -d "$(printf '{"actionConfig":{"isActionConfigured":true},"bapConfig":%s}' "$(printf '%s' "$ACTION_UPGRADE_PAYLOAD" | sed -n 's/.*"bapConfig":\({.*}\)}.*/\1/p')")" >/dev/null || \
           curl -sS -f -X PATCH \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "X-Goog-User-Project: $PROJECT_ID" \

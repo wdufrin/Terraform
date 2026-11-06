@@ -1,5 +1,85 @@
-# Copy this file to `terraform.tfvars` and set your target GCP Project ID:
-#   cp terraform.tfvars.example terraform.tfvars
-
+# =====================================================================
+# Target GCP Project & Location
+# =====================================================================
 project_id = "your-gcp-project-id"
-location   = "global"
+location   = "global" # "global", "us", or "eu"
+
+# Set to true if discoveryengine.googleapis.com is not already enabled in the project.
+manage_apis = false
+
+# "PREVENT" (default) refuses to delete connectors on destroy / forced replacement.
+# Use "DELETE" for disposable dev/test projects.
+deletion_policy = "PREVENT"
+
+# Set to true in dev/sandbox environments so `terraform destroy` + `terraform apply` rolls
+# a fresh 4-char hex suffix on collection IDs (bypassing Discovery Engine's 2-hour soft-delete queue).
+append_random_suffix = false
+
+# =====================================================================
+# 1st-Party Google Workspace Connectors (Drive, Calendar, Gmail, Chat, Sites)
+# =====================================================================
+# By default, all 5 core 1P connectors (google_drive, google_calendar, google_mail,
+# google_chat, google_sites) are deployed in zero-credential FEDERATED search mode
+# and become ACTIVE in ~1-2 seconds.
+#
+# To also enable Actions ("ACTIONS" in connector_modes) on Drive, Calendar, Gmail, or Chat,
+# override `connectors` with:
+#   connector_modes       = ["FEDERATED", "ACTIONS"]
+#   create_bap_connection = true
+#   supported_bap_modes   = ["ACTIONS"]
+#   enabled_actions       = [...] # V2 Workspace MCP action IDs (see README.md / variables.tf)
+# and supply a Google Cloud OAuth 2.0 Web Client's `client_id` and `client_secret` via
+# `connector_secret_refs` (or `connector_secrets`) under `action_params` (along with
+# `auth_key = "OAuth"` and `auth_type = "OAUTH"`).
+
+# =====================================================================
+# 3rd-Party Enterprise Connectors
+# =====================================================================
+# To enable a 3P connector, set `enabled = true`, replace every placeholder, and supply
+# credentials through `connector_secret_refs` (Secret Manager, resolved by Terraform) or the
+# sensitive `connector_secrets` variable. Never put plaintext secrets directly in `params`.
+
+# Example: Enabling Jira Cloud (Federated Search + Actions)
+# third_party_connectors = {
+#   jira = {
+#     enabled                 = true
+#     collection_id           = "ge-3p-jira"
+#     collection_display_name = "Jira Cloud (3P Federated + Actions)"
+#     data_source             = "jira"
+#     data_source_version     = 3
+#     entities                = ["project", "issue", "comment", "attachment", "worklog", "board"]
+#     connector_modes         = ["FEDERATED", "ACTIONS"]
+#     create_bap_connection   = true
+#     supported_bap_modes     = ["ACTIONS"]
+#     enabled_actions         = ["create_issue", "update_issue", "change_issue_status", "create_comment"]
+#     params = {
+#       auth_type    = "OAUTH_TWO_LEGGED" # Selects 2LO schema (avoids 3LO refresh_token requirement)
+#       instance_id  = "<your-atlassian-cloud-id>"
+#       instance_uri = "https://your-company.atlassian.net"
+#     }
+#     action_params = {
+#       auth_type             = "OAUTH"
+#       instance_uri          = "https://your-company.atlassian.net"
+#       include_custom_fields = "false"
+#     }
+#     destination_configs = [
+#       {
+#         key          = "url"
+#         destinations = [{ host = "https://your-company.atlassian.net", port = 443 }]
+#       }
+#     ]
+#   }
+# }
+#
+# connector_secret_refs = {
+#   jira = {
+#     params = {
+#       client_id     = "projects/<project>/secrets/jira-client-id/versions/latest"
+#       client_secret = "projects/<project>/secrets/jira-client-secret/versions/latest"
+#     }
+#     action_params = {
+#       client_id     = "projects/<project>/secrets/jira-client-id/versions/latest"
+#       client_secret = "projects/<project>/secrets/jira-client-secret/versions/latest"
+#     }
+#   }
+# }

@@ -1,0 +1,415 @@
+# ==============================================================================
+# Production Environment Configuration (Gemini Enterprise Connectors)
+# ==============================================================================
+# Every "<your-...>" / "your-..." value is a placeholder. Enabled 3P connectors that still
+# contain placeholders are rejected by validation, so nothing half-configured is created.
+
+project_id  = "your-prod-project-id"
+location    = "global" # "global", "us", or "eu"
+manage_apis = false    # Pre-enable discoveryengine.googleapis.com via your organization foundation
+
+# Deterministic, stable collection IDs that downstream engines and agents can bind to.
+append_random_suffix = false
+
+# Refuse to delete connectors on `terraform destroy` or on a ForceNew change. To tear down,
+# set this to "DELETE", run `terraform apply`, then `terraform destroy`.
+deletion_policy = "PREVENT"
+
+# Required if a CMEK organization policy covers Discovery Engine (changing it recreates connectors).
+# kms_key_name = "projects/your-kms-project/locations/global/keyRings/your-ring/cryptoKeys/your-key"
+
+# ------------------------------------------------------------------------------
+# 1st-Party Google Workspace Connectors (Zero-Credential Federated Search by Default)
+# To also enable Actions ("ACTIONS" in connector_modes), set create_bap_connection = true,
+# supported_bap_modes = ["ACTIONS"], enabled_actions (using V2 Workspace MCP action IDs),
+# and supply a Google Cloud OAuth 2.0 Web Client's client_id and client_secret in
+# connector_secret_refs (or connector_secrets) under action_params.
+# ------------------------------------------------------------------------------
+connectors = {
+  google_drive = {
+    collection_id           = "ge-1p-google-drive"
+    collection_display_name = "Google Drive (Prod)"
+    data_source             = "google_drive"
+    data_source_version     = 2
+    entity_name             = "google_drive"
+    refresh_interval        = "0s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED"]
+    # To enable Actions on Drive, uncomment below and add google_drive to connector_secret_refs:
+    # connector_modes       = ["FEDERATED", "ACTIONS"]
+    # create_bap_connection = true
+    # supported_bap_modes   = ["ACTIONS"]
+    # enabled_actions = [
+    #   "copy_file", "create_file", "download_file_content", "get_file_metadata",
+    #   "get_file_permissions", "googledocs_read_doc", "googledocs_update_doc",
+    #   "googlesheets_get_spreadsheet", "googlesheets_get_values", "googlesheets_insert_dimension",
+    #   "googlesheets_update_formulas", "googlesheets_update_spreadsheet", "googlesheets_update_values",
+    #   "googleslides_read_presentation", "googleslides_update_presentation", "list_recent_files",
+    #   "list_shared_drives", "read_file_content", "search_files", "share_file", "trash_file", "update_file"
+    # ]
+  }
+
+  google_calendar = {
+    collection_id           = "ge-1p-google-cal"
+    collection_display_name = "Google Calendar (Prod)"
+    data_source             = "google_calendar"
+    data_source_version     = 2
+    entity_name             = "google_calendar"
+    refresh_interval        = "0s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED"]
+    # To enable Actions on Calendar, uncomment below and add google_calendar to connector_secret_refs:
+    # connector_modes       = ["FEDERATED", "ACTIONS"]
+    # create_bap_connection = true
+    # supported_bap_modes   = ["ACTIONS"]
+    # enabled_actions = [
+    #   "create_event", "delete_event", "respond_to_event", "update_event",
+    #   "get_event", "list_calendars", "list_events", "search_events", "suggest_time"
+    # ]
+  }
+
+  google_mail = {
+    collection_id           = "ge-1p-google-mail-v2"
+    collection_display_name = "Gmail (Prod)"
+    data_source             = "google_mail"
+    data_source_version     = 2
+    entity_name             = "google_mail"
+    refresh_interval        = "0s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED"]
+    # To enable Actions on Gmail, uncomment below and add google_mail to connector_secret_refs:
+    # connector_modes       = ["FEDERATED", "ACTIONS"]
+    # create_bap_connection = true
+    # supported_bap_modes   = ["ACTIONS"]
+    # enabled_actions = [
+    #   "batch_label_messages", "batch_label_threads", "batch_unlabel_messages", "batch_unlabel_threads",
+    #   "create_draft", "create_filter", "create_label", "delete_filter", "delete_label",
+    #   "download_attachment", "forward", "get_message_attachment", "get_thread", "label_message",
+    #   "label_thread", "list_drafts", "list_filters", "list_labels", "list_threads", "read_attachment",
+    #   "reply", "search_threads", "send_message", "unlabel_message", "unlabel_thread", "update_draft", "update_label"
+    # ]
+  }
+
+  google_chat = {
+    collection_id           = "ge-1p-google-chat-v2"
+    collection_display_name = "Google Chat (Prod)"
+    data_source             = "google_chat"
+    data_source_version     = 2
+    entity_name             = "google_chat"
+    refresh_interval        = "0s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED"]
+    # To enable Actions on Chat, uncomment below and add google_chat to connector_secret_refs:
+    # connector_modes       = ["FEDERATED", "ACTIONS"]
+    # create_bap_connection = true
+    # supported_bap_modes   = ["ACTIONS"]
+    # enabled_actions = [
+    #   "add_membership", "add_reaction", "create_conversation", "list_memberships", "list_messages",
+    #   "list_messages_markdown", "remove_membership", "remove_reaction", "search_conversations",
+    #   "search_messages", "send_message", "send_message_markdown", "update_membership"
+    # ]
+  }
+
+  google_sites = {
+    collection_id           = "ge-1p-google-sites"
+    collection_display_name = "Google Sites (Prod)"
+    data_source             = "google_sites"
+    data_source_version     = 1
+    entity_name             = "google_sites"
+    refresh_interval        = "0s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED"]
+  }
+}
+
+# ------------------------------------------------------------------------------
+# 3rd-Party Enterprise Connectors (Live-Verified against Discovery Engine API)
+# Credentials are NOT placed here - see connector_secret_refs below.
+# ------------------------------------------------------------------------------
+third_party_connectors = {
+  # Microsoft Entra ID (identity sync)
+  azure_active_directory = {
+    enabled                 = true
+    collection_id           = "ge-3p-entraid"
+    collection_display_name = "Microsoft Entra ID"
+    data_source             = "azure_active_directory"
+    data_source_version     = 1
+    entities                = ["Userprofiles"]
+    refresh_interval        = "10800s"
+    auto_run_disabled       = true
+    connector_modes         = ["DATA_INGESTION"]
+    create_bap_connection   = false
+    supported_bap_modes     = []
+    enabled_actions         = []
+    params = {
+      azure_tenant                         = "<your-azure-tenant-id>"
+      client_id                            = "<your-entra-app-client-id>"
+      fetch_extension_properties_for_users = "false"
+      realtime_sync_enabled                = "false"
+    }
+  }
+
+  # Microsoft SharePoint Online (note: backend auto-appends placeholder `site` entity)
+  sharepoint = {
+    enabled                 = true
+    collection_id           = "ge-3p-sharepoint"
+    collection_display_name = "SharePoint Online"
+    data_source             = "sharepoint"
+    data_source_version     = 2
+    entities                = ["attachment", "comment", "event", "page", "file"]
+    refresh_interval        = "86400s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED", "ACTIONS"]
+    create_bap_connection   = true
+    supported_bap_modes     = ["ACTIONS"]
+    enabled_actions = [
+      "add_list",
+      "add_page",
+      "check_in_document",
+      "check_out_document",
+      "create_folder",
+      "move_attachment_or_document",
+      "rename_attachment_or_document",
+      "upload_document"
+    ]
+    params = {
+      tenant_id    = "<your-azure-tenant-id>"
+      client_id    = "<your-sharepoint-app-client-id>"
+      instance_uri = "https://your-company.sharepoint.com/"
+    }
+    action_params = {
+      auth_type             = "OAUTH"
+      client_id             = "<your-sharepoint-app-client-id>"
+      instance_uri          = "https://your-company.sharepoint.com/"
+      tenant_id             = "<your-azure-tenant-id>"
+      o365_environment_type = "com"
+    }
+    destination_configs = [
+      {
+        key          = "url"
+        destinations = [{ host = "https://your-company.sharepoint.com/", port = 443 }]
+      }
+    ]
+  }
+
+  # Microsoft OneDrive
+  onedrive = {
+    enabled                 = true
+    collection_id           = "ge-3p-onedrive"
+    collection_display_name = "OneDrive"
+    data_source             = "onedrive"
+    data_source_version     = 1
+    entities                = ["file"]
+    refresh_interval        = "86400s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED", "ACTIONS"]
+    create_bap_connection   = true
+    supported_bap_modes     = ["ACTIONS"]
+    enabled_actions         = ["upload_file", "copy_file", "create_folder"]
+    params = {
+      instance_uri      = "https://your-company-my.sharepoint.com/"
+      tenant_id         = "<your-azure-tenant-id>"
+      client_id         = "<your-onedrive-app-client-id>"
+      decrypt_mip_files = "false"
+    }
+    action_params = {
+      auth_type             = "OAUTH"
+      tenant_id             = "<your-azure-tenant-id>"
+      azure_tenant          = "<your-azure-tenant-id>"
+      client_id             = "<your-onedrive-app-client-id>"
+      o365_environment_type = "com"
+    }
+    destination_configs = [
+      {
+        key          = "url"
+        destinations = [{ host = "https://your-company-my.sharepoint.com/", port = 443 }]
+      }
+    ]
+  }
+
+  # Microsoft Teams (note: backend auto-appends placeholder `root` entity)
+  teams = {
+    enabled                 = true
+    collection_id           = "ge-3p-teams"
+    collection_display_name = "Microsoft Teams"
+    data_source             = "teams"
+    data_source_version     = 1
+    entities                = ["team", "channel", "channel-message", "channel-file", "chat-message"]
+    refresh_interval        = "86400s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED", "ACTIONS"]
+    create_bap_connection   = true
+    supported_bap_modes     = ["ACTIONS"]
+    enabled_actions         = ["send_chat_message", "send_channel_message"]
+    params = {
+      instance_id = "<your-azure-tenant-id>"
+      domain_url  = "https://your-company.sharepoint.com"
+      client_id   = "<your-teams-app-client-id>"
+    }
+    action_params = {
+      auth_type          = "OAUTH"
+      instance_id        = "<your-azure-tenant-id>"
+      azure_tenant       = "<your-azure-tenant-id>"
+      client_id          = "<your-teams-app-client-id>"
+      include_all_groups = "true"
+      include_all_users  = "true"
+    }
+  }
+
+  # Microsoft Outlook (note: backend auto-appends placeholder `root` entity — do NOT list `root` here)
+  outlook = {
+    enabled                 = true
+    collection_id           = "ge-3p-outlook"
+    collection_display_name = "Microsoft Outlook"
+    data_source             = "outlook"
+    data_source_version     = 1
+    entities                = ["mail", "mail-attachment", "calendar", "contact"]
+    refresh_interval        = "86400s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED", "ACTIONS"]
+    create_bap_connection   = true
+    supported_bap_modes     = ["ACTIONS"]
+    enabled_actions = [
+      "send_mail",
+      "create_event",
+      "create_contact",
+      "download_attachments",
+      "forward_mail",
+      "move_mail",
+      "update_event",
+      "update_contact"
+    ]
+    params = {
+      instance_id = "<your-azure-tenant-id>"
+      client_id   = "<your-outlook-app-client-id>"
+    }
+    action_params = {
+      auth_type             = "OAUTH"
+      instance_id           = "<your-azure-tenant-id>"
+      azure_tenant          = "<your-azure-tenant-id>"
+      client_id             = "<your-outlook-app-client-id>"
+      o365_environment_type = "com"
+    }
+  }
+
+  # ServiceNow (note: backend auto-appends placeholder `knowledge_base` entity — do NOT list `knowledge_base` here)
+  servicenow = {
+    enabled                 = true
+    collection_id           = "ge-3p-servicenow"
+    collection_display_name = "ServiceNow"
+    data_source             = "servicenow"
+    data_source_version     = 2
+    entities                = ["catalog", "incident", "knowledge", "users", "attachment"]
+    refresh_interval        = "86400s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED", "ACTIONS"]
+    create_bap_connection   = true
+    supported_bap_modes     = ["ACTIONS"]
+    enabled_actions = [
+      "create_incident",
+      "update_incident",
+      "create_change_request",
+      "create_task",
+      "create_service_catalog_request",
+      "update_service_catalog_request",
+      "create_request_item",
+      "update_request_item"
+    ]
+    params = {
+      auth_type    = "OAUTH_PASSWORD_GRANT"
+      instance_uri = "https://your-instance.service-now.com"
+      user_account = "<your-servicenow-username>"
+      client_id    = "<your-servicenow-oauth-client-id>"
+    }
+    action_params = {
+      auth_key     = "OAuth"
+      auth_type    = "OAUTH"
+      instance_uri = "https://your-instance.service-now.com"
+      auth_uri     = "https://your-instance.service-now.com/oauth_auth.do"
+      token_uri    = "https://your-instance.service-now.com/oauth_token.do"
+      client_id    = "<your-servicenow-oauth-client-id>"
+    }
+    destination_configs = [
+      {
+        key          = "host_url"
+        destinations = [{ host = "https://your-instance.service-now.com" }]
+      }
+    ]
+  }
+
+  # Jira Cloud (auth_type = "OAUTH_TWO_LEGGED" in top-level params selects 2LO schema)
+  jira = {
+    enabled                 = true
+    collection_id           = "ge-3p-jira"
+    collection_display_name = "Jira Cloud"
+    data_source             = "jira"
+    data_source_version     = 3
+    entities                = ["project", "issue", "comment", "attachment", "worklog", "board"]
+    refresh_interval        = "86400s"
+    auto_run_disabled       = true
+    connector_modes         = ["FEDERATED", "ACTIONS"]
+    create_bap_connection   = true
+    supported_bap_modes     = ["ACTIONS"]
+    enabled_actions         = ["create_issue", "update_issue", "change_issue_status", "create_comment"]
+    params = {
+      auth_type    = "OAUTH_TWO_LEGGED"
+      instance_id  = "<your-atlassian-cloud-id>"
+      instance_uri = "https://your-company.atlassian.net"
+    }
+    action_params = {
+      auth_type             = "OAUTH"
+      instance_uri          = "https://your-company.atlassian.net"
+      include_custom_fields = "false"
+    }
+    destination_configs = [
+      {
+        key          = "url"
+        destinations = [{ host = "https://your-company.atlassian.net", port = 443 }]
+      }
+    ]
+  }
+}
+
+# ------------------------------------------------------------------------------
+# Credentials: Secret Manager references, resolved by Terraform at plan/apply time.
+# The connector API receives the secret VALUE (it cannot dereference these names).
+# The identity running Terraform needs roles/secretmanager.secretAccessor on each secret.
+# ------------------------------------------------------------------------------
+connector_secret_refs = {
+  azure_active_directory = {
+    params = { client_secret = "projects/your-prod-project-id/secrets/entra-client-secret/versions/latest" }
+  }
+  sharepoint = {
+    action_params = { client_secret = "projects/your-prod-project-id/secrets/sharepoint-client-secret/versions/latest" }
+  }
+  onedrive = {
+    action_params = { client_secret = "projects/your-prod-project-id/secrets/onedrive-client-secret/versions/latest" }
+  }
+  teams = {
+    params        = { client_secret = "projects/your-prod-project-id/secrets/teams-client-secret/versions/latest" }
+    action_params = { client_secret = "projects/your-prod-project-id/secrets/teams-client-secret/versions/latest" }
+  }
+  outlook = {
+    params        = { client_secret = "projects/your-prod-project-id/secrets/outlook-client-secret/versions/latest" }
+    action_params = { client_secret = "projects/your-prod-project-id/secrets/outlook-client-secret/versions/latest" }
+  }
+  servicenow = {
+    params = {
+      password      = "projects/your-prod-project-id/secrets/servicenow-password/versions/latest"
+      client_secret = "projects/your-prod-project-id/secrets/servicenow-client-secret/versions/latest"
+    }
+    action_params = {
+      client_secret = "projects/your-prod-project-id/secrets/servicenow-client-secret/versions/latest"
+    }
+  }
+  jira = {
+    params = {
+      client_id     = "projects/your-prod-project-id/secrets/jira-client-id/versions/latest"
+      client_secret = "projects/your-prod-project-id/secrets/jira-client-secret/versions/latest"
+    }
+    action_params = {
+      client_id     = "projects/your-prod-project-id/secrets/jira-client-id/versions/latest"
+      client_secret = "projects/your-prod-project-id/secrets/jira-client-secret/versions/latest"
+    }
+  }
+}
